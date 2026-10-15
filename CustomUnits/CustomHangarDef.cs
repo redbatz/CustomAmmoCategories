@@ -18,6 +18,8 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using IRBTModUtils;
 using UIWidgets;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -484,6 +486,78 @@ namespace CustomUnits
             Log.M?.TWL(0, "MechBayPanel.Inited");
         }
     }
+    
+        public static class CustomHangarExtensions
+    {
+        public static int GetFirstFreeMechBay(this SimGameState sim, MechDef mech, int? default_position = null)
+        {
+            Log.M?.TWL(0, "SimGameState.AddMech.GetFirstFreeMechBay_MD " + mech.Description.Id +
+                " IsVehicle:" + mech.IsVehicle() + " IsInFakeDef:" + mech.Description.Id.IsInFakeDef() + " IsInFakeChassis:" + mech.ChassisID.IsInFakeChassis());
+            if (mech == null) { return sim.GetFirstFreeMechBay(); }
+
+            // Check for constraints on the hangar size
+            int maxPods = CustomHangarHelper.MaxPodsConstraint(sim, mech);
+            if (maxPods == -1) { maxPods = sim.GetMaxActiveMechs(); }
+            Log.M?.TWL(1, $"MaxPods: {maxPods}");
+
+            // Check for units that fit the base hangar
+            if (mech.GetHangarShift() == 0)
+            {
+                Thread.CurrentThread.SetFlag("GetFirstFreeMechBay_original");
+                int result = default_position.HasValue ? default_position.Value : sim.GetFirstFreeMechBay();
+                Thread.CurrentThread.ClearFlag("GetFirstFreeMechBay_original");
+
+                Log.M?.TWL(1, $"baseHangar: result: {result} vs MaxPods: {maxPods}");
+                // If the bay index would equal maxPods, reject it
+                return result < maxPods ? result : -1;
+            }
+            else
+            {
+                // Check for units that have a custom hangar
+                int maxActiveMechs = maxPods + mech.GetHangarShift();
+                int minActiveMechs = mech.GetHangarShift();
+                for (int key = minActiveMechs; key < maxActiveMechs; ++key)
+                {
+                    if (sim.ActiveMechs.ContainsKey(key)) { continue; }
+                    if (sim.ReadyingMechs.ContainsKey(key)) { continue; }
+                    return key;
+                }
+            }
+            return -1;
+        }
+
+        public static int GetFirstFreeMechBay(this SimGameState sim, ChassisDef chassis, int? default_position = null)
+        {
+            Log.M?.TWL(0, "SimGameState.AddMech.GetFirstFreeMechBay_CD " + chassis.Description.Id +
+                " IsVehicle:" + chassis.IsVehicle() + " IsInFakeChassis:" + chassis.Description.Id.IsInFakeChassis());
+            if (chassis == null) { return sim.GetFirstFreeMechBay(); }
+
+            // Check for constraints on the hangar size
+            int maxPods = CustomHangarHelper.MaxPodsConstraint(sim, chassis);
+            if (maxPods == -1) { maxPods = sim.GetMaxActiveMechs(); }
+
+            // if (chassis.GetHangarShift() == 0)
+            // {
+            //     Thread.CurrentThread.SetFlag("GetFirstFreeMechBay_original");
+            //     int result = default_position.HasValue ? default_position.Value : sim.GetFirstFreeMechBay();
+            //     Thread.CurrentThread.ClearFlag("GetFirstFreeMechBay_original");
+            //
+            //     Log.M?.TWL(1, $"baseHangar: result: {result} vs MaxPods: {maxPods}");
+            //     // If the bay index would equal maxPods, reject it
+            //     return result < maxPods ? result : -1;
+            // }
+
+            int maxActiveMechs = maxPods + chassis.GetHangarShift();
+            int minActiveMechs = chassis.GetHangarShift();
+            for (int key = minActiveMechs; key < maxActiveMechs; ++key)
+            {
+                if (sim.ActiveMechs.ContainsKey(key)) { continue; }
+                if (sim.ReadyingMechs.ContainsKey(key)) { continue; }
+                return key;
+            }
+            return -1;
+        }
+    }
 
     public static class CustomHangarHelper
     {
@@ -587,7 +661,27 @@ namespace CustomUnits
                 
             }
         }
+        public static int MaxPodsConstraint(SimGameState sim, MechDef mechDef)
+        {
+            CustomHangarDef def = mechDef?.Chassis?.HangarDef();
+            return def == null ? -1 : CountUnlockedBays(sim);
+        }
 
+        public static int MaxPodsConstraint(SimGameState sim, ChassisDef chassisDef)
+        {
+            CustomHangarDef def = chassisDef?.HangarDef();
+            return def == null ? -1 : CountUnlockedBays(sim);
+        }
+
+        private static int CountUnlockedBays(SimGameState sim)
+        {
+            MechBayPanel mechBayPanel = sim.mechBayPanel();
+            MechBayRowGroupWidget mechBayRowGroupWidget = mechBayPanel.bayGroupWidget;
+            mechBayRowGroupWidget.SetData(mechBayPanel, sim);
+            int unlockedBays = mechBayRowGroupWidget.Bays.Where(mechBayRowWidget => mechBayRowWidget.isUnlocked)
+                .Sum(mechBayRowWidget => mechBayRowWidget.MechDropSlots.Length);
+            return unlockedBays;
+        }
     }
 
     public class CustomHangarDef

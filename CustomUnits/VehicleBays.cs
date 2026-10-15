@@ -1127,42 +1127,6 @@ namespace CustomUnits {
       Log.M?.TWL(0, "VehicleShift:" + (chassis == null ? chassis.Description.Id : "null") + " result:" + result);
       return result;
     }
-    public static int GetFirstFreeMechBay(this SimGameState sim, MechDef mech, int? default_position = null) {
-      Log.M?.TWL(0, "SimGameState.AddMech.GetFirstFreeMechBay " + mech.Description.Id + " IsVehicle:" + mech.IsVehicle() + " IsInFakeDef:" + mech.Description.Id.IsInFakeDef() + " IsInFakeChassis:" + mech.ChassisID.IsInFakeChassis());
-      if (mech == null) { return sim.GetFirstFreeMechBay(); };
-      if (mech.GetHangarShift() == 0) {
-        Thread.CurrentThread.SetFlag("GetFirstFreeMechBay_original");
-        int result = default_position.HasValue ? default_position.Value : sim.GetFirstFreeMechBay();
-        Thread.CurrentThread.ClearFlag("GetFirstFreeMechBay_original");
-        return result;
-      }
-      int maxActiveMechs = sim.GetMaxActiveMechs() + mech.GetHangarShift();
-      int minActiveMechs = mech.GetHangarShift();
-      for (int key = minActiveMechs; key < maxActiveMechs; ++key) {
-        if (sim.ActiveMechs.ContainsKey(key)) { continue; };
-        if (sim.ReadyingMechs.ContainsKey(key)) { continue; };
-        return key;
-      }
-      return -1;
-    }
-    public static int GetFirstFreeMechBay(this SimGameState sim, ChassisDef chassis, int? default_position = null) {
-      Log.M?.TWL(0, "SimGameState.AddMech.GetFirstFreeMechBay " + chassis.Description.Id + " IsVehicle:" + chassis.IsVehicle() + " IsInFakeChassis:" + chassis.Description.Id.IsInFakeChassis());
-      if (chassis == null) { return sim.GetFirstFreeMechBay(); };
-      if (chassis.GetHangarShift() == 0) {
-        Thread.CurrentThread.SetFlag("GetFirstFreeMechBay_original");
-        int result = default_position.HasValue ? default_position.Value : sim.GetFirstFreeMechBay();
-        Thread.CurrentThread.ClearFlag("GetFirstFreeMechBay_original");
-        return result;
-      }
-      int maxActiveMechs = sim.GetMaxActiveMechs() + chassis.GetHangarShift();
-      int minActiveMechs = chassis.GetHangarShift();
-      for (int key = minActiveMechs; key < maxActiveMechs; ++key) {
-        if (sim.ActiveMechs.ContainsKey(key)) { continue; };
-        if (sim.ReadyingMechs.ContainsKey(key)) { continue; };
-        return key;
-      }
-      return -1;
-    }
     public static void Prefix(ref bool __runOriginal, SimGameState __instance, int idx, MechDef mech, bool active, bool forcePlacement, bool displayMechPopup, string mechAddedHeader) {
       try {
         if (!__runOriginal) { return; }
@@ -1395,17 +1359,6 @@ namespace CustomUnits {
   [HarmonyPatch(MethodType.Normal)]
   [HarmonyPatch(new Type[] { })]
   public static class MechBayChassisInfoWidget_OnReadyClicked {
-    public static int GetFirstFreeMechBay(this SimGameState sim, ChassisDef chassis) {
-      if (chassis == null) { return sim.GetFirstFreeMechBay(); };
-      //if (chassis.IsVehicle() == false) { return sim.GetFirstFreeMechBay(); }
-      int baysShift = chassis.GetHangarShift();
-      int maxActiveMechs = sim.GetMaxActiveMechs() + baysShift;
-      int minActiveMechs = baysShift;
-      for (int key = minActiveMechs; key < maxActiveMechs; ++key) {
-        if (!sim.ActiveMechs.ContainsKey(key)) { return key; };
-      }
-      return -1;
-    }
     public static void Prefix(ref bool __runOriginal, MechBayChassisInfoWidget __instance) {
       try {
         Log.M?.TWL(0, $"MechBayChassisInfoWidget.OnReadyClicked runOriginal:{__runOriginal}");
